@@ -102,3 +102,8 @@ def merge_audio_segments(output_directory, speaker_audio_segment, separate_audio
     print('Exporting TTS audio to a single file at {}'.format(merged_audio_file))
     merged_segment.export(merged_audio_file, format='mp3')
 
+
+def clean_up(speech_lines):
+    """ Delete the (intermediate) audio files of each speech line. """
+    for speech_line in speech_lines:
+        os.remove(speech_line['path'])

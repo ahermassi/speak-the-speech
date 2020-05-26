@@ -33,6 +33,8 @@ def main(input, output_directory, separate=False):
 
     merge_audio_segments(output_directory, speaker_audio_segment, separate_audio_files)
 
+    clean_up(speech_lines)
+
 
 if __name__ == "__main__":
     main()
