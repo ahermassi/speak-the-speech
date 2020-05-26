@@ -1,18 +1,17 @@
-import datetime
 import os
 import sys
 import boto3
 import click
 from colorama import Fore, Style
-from pydub import AudioSegment
-from utils import text_to_speech, collect_audio_segments
+from utils import text_to_speech, collect_audio_segments, merge_audio_segments, clean_up
 
 
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.option('--input', '-i', help='Specify text input file')
 @click.option('--output-directory', '-o', default=os.getcwd(), help='Specify the output directory of speech audio file')
-@click.option('--separate', '-s', is_flag=True, help='Create separate audio files for different voices')
+@click.option('--separate', '-s', is_flag=True, help='Create a separate audio file for each different speaker')
 def main(input, output_directory, separate=False):
+
     if not input:
         print(Fore.RED + Style.BRIGHT + 'You have to specify the input file path' + Style.RESET_ALL)
         sys.exit()
@@ -30,33 +29,9 @@ def main(input, output_directory, separate=False):
 
     text_to_speech(input_lines, output_directory, polly, speech_lines, voices)
 
-    output_segments = {}  # This dictionary collects all the audio segments of each voice ID
-    for voice_id in voices:
-        output_segments[voice_id] = AudioSegment.silent(duration=0)
+    speaker_audio_segment = collect_audio_segments(speech_lines, voices)
 
-    collect_audio_segments(output_segments, speech_lines, voices)
-
-    merged_segment = AudioSegment.silent(duration=0)
-    last_segment = None
-    now = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    for voice_id, segment in output_segments.items():
-        output_audio_file = os.path.join(output_directory, '{}_{}.mp3'.format(now, voice_id))
-        if separate_audio_files:
-            print('Exporting TTS audio for {} of length {}ms to an MP3 at {}'.format(voice_id, len(segment),
-                                                                                     output_audio_file))
-            segment.export(output_audio_file, format='mp3')
-        if last_segment:
-            merged_segment = last_segment.overlay(segment)
-            last_segment = merged_segment
-        else:
-            last_segment = segment
-
-    output_audio_file = os.path.join(output_directory, now + '_Merged.mp3')
-    print('Exporting TTS audio to a single file at {}'.format(output_audio_file))
-    merged_segment.export(output_audio_file, format='mp3')
-
-    for speech_line in speech_lines:
-        os.remove(speech_line['path'])
+    merge_audio_segments(output_directory, speaker_audio_segment, separate_audio_files)
 
 
 if __name__ == "__main__":

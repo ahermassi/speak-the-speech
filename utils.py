@@ -1,3 +1,4 @@
+import datetime
 import os
 import sys
 from contextlib import closing
@@ -48,7 +49,13 @@ def text_to_speech(input_lines, output_directory, polly, speech_lines, voices):
                 sys.exit()
 
 
-def collect_audio_segments(output_segments, speech_lines, voices):
+def collect_audio_segments(speech_lines, voices):
+    """ Iterate over the 'speech_lines' list, extract audio segments from each audio file, and stitch together all
+        segments of each one of the speakers.
+    """
+    speaker_audio_segment = {}  # This dictionary collects all the audio segments of each voice ID
+    for voice_id in voices:
+        speaker_audio_segment[voice_id] = AudioSegment.silent(duration=0)
     total_speech_duration = 0
     for speech_line in speech_lines:  # Each speech line is {voice_id: voice ID, path: audio file path}
         current_voice_id = speech_line['voice_id']
@@ -64,12 +71,34 @@ def collect_audio_segments(output_segments, speech_lines, voices):
             # while someone else is speaking
             if current_voice_id == voice_id:  # This is me speaking
                 print(voice_id + ': Appending segment from ' + path)
-                output_segments[voice_id] += segment
+                speaker_audio_segment[voice_id] += segment
             else:  # This is someone else speaking. I better be silent for the duration of speech
                 print('{}: Appending {}ms of silence to AudioSegment'.format(voice_id, segment_length))
-                output_segments[voice_id] += AudioSegment.silent(duration=segment_length)
+                speaker_audio_segment[voice_id] += AudioSegment.silent(duration=segment_length)
             # Add extra silence at the end of each clip for more natural-sounding conversation
-            output_segments[voice_id] += AudioSegment.silent(duration=450)
+            speaker_audio_segment[voice_id] += AudioSegment.silent(duration=450)
 
         print()
         total_speech_duration += segment_length
+    return speaker_audio_segment
+
+
+def merge_audio_segments(output_directory, speaker_audio_segment, separate_audio_files):
+    """ Merge the separate audio segments into a single MP3 file. """
+    merged_segment = AudioSegment.silent(duration=0)
+    previous_segment = None
+    now = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    for voice_id, segment in speaker_audio_segment.items():
+        output_audio_file = os.path.join(output_directory, '{}_{}.mp3'.format(now, voice_id))
+        if separate_audio_files:  # Create a separate audio file for each different speaker
+            print('Exporting TTS for {} of length {}ms to MP3 at {}'.format(voice_id, len(segment), output_audio_file))
+            segment.export(output_audio_file, format='mp3')
+        if previous_segment:
+            merged_segment = previous_segment.overlay(segment)
+            previous_segment = merged_segment
+        else:
+            previous_segment = segment
+    merged_audio_file = os.path.join(output_directory, now + '_Merged.mp3')
+    print('Exporting TTS audio to a single file at {}'.format(merged_audio_file))
+    merged_segment.export(merged_audio_file, format='mp3')
+
