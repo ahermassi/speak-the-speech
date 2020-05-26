@@ -12,6 +12,10 @@ def text_to_speech(input_lines, output_directory, polly, speech_lines, voices):
     """ Read the text input lines, synthesize the speech of every speaker, and save each synthesized line along with
         the speaker ID.
     """
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+    else:
+        empty_output_directory(output_directory)
     is_speaker_name = True  # Tell whether the currently read line is a speaker name or a speech line
     voice_id, speech = None, None
     for line in input_lines:
@@ -109,3 +113,12 @@ def clean_up(speech_lines):
     """ Delete the (intermediate) audio files of each speech line. """
     for speech_line in speech_lines:
         os.remove(speech_line['path'])
+
+
+def empty_output_directory(output_directory):
+    for filename in os.listdir(output_directory):
+        file_path = os.path.join(output_directory, filename)
+        try:
+            os.unlink(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
